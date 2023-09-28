@@ -1,0 +1,145 @@
+
+---
+title: "Preserving Happiness: What Enables Longer Lasting Happy Moments?"
+author: "Yitian Shen"
+date: "29/9/2023"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Project Summary
+　People gain happy moments for many reasons,for example, playing video games, buying new clothes, having a delicious meal and etc. However, the impact of these factors last on people seem to be different, in other words, the duration of their impact always varies.By using the "HapppyDB" dataset, this project aims to investigate what kinds of factors can contribute longer lasting happiness.  
+　This project mainly use two datasets, which are "cleaned_hm.csv" and "senselabel.csv". Firstly, the collected happy moments were devided into two groups, which correspond to the happy moments described by works in the past 24 hours and the past 3 months, respectively. For each group, the frequency of words have been counted and then ranked. After removing common words, differences between the factors that bring people happiness in two groups become apparent.
+
+## Data Preprocessing
+```{r,warning=FALSE,message=FALSE}
+library(tm)
+library('wordcloud2')
+library('dplyr')
+library('jiebaR')
+```
+
+```{r load the data,warning=FALSE,message=FALSE}
+leaned_hm_file <- 'https://raw.githubusercontent.com/rit-public/HappyDB/master/happydb/data/cleaned_hm.csv'
+senselabel_file <- 'https://raw.githubusercontent.com/rit-public/HappyDB/master/happydb/data/senselabel.csv'
+chm <- read.csv(leaned_hm_file)
+senselabel <- read.csv(senselabel_file)
+```
+
+**Step 1:**　Import "cleaned_hm.csv" and devide the happy moments into two groups: short-term happiness and long-term happiness, where the reflection periods are 24 hours and 3 months respectively.  
+　Since the total amount of happy moments for two groups are approximately equal(49831 happy moments in short-term group and 50704 happy moments in long-term group), so it is reasonable to get the outcomes by comparing these two groups.
+```{r,warning=FALSE,message=FALSE,comment=''}
+
+short_data <- chm[which(chm$reflection_period == '24h'),]
+long_data <- chm[which(chm$reflection_period == '3m'),]
+
+short_num <- sum(chm$reflection_period == '24h')
+long_num <- sum(chm$reflection_period == '3m')
+print(paste('The total amount of happy moments in short-term group is:',short_num))
+print(paste('The total amount of happy moments in long-term group is:',long_num))
+```
+
+
+**Step 2:**　Creating our new datasets by extracting _hmid_ and *refection_period* from *cleaned_hm* , while inner joining with the *lowercaseLemma* from the *senselabel*.  
+　Data samples are as below.
+```{r,warning=FALSE,message=FALSE,comment=''}
+#extract data
+sd <- short_data[,c(1,3)]
+ld <- long_data[,c(1,3)]
+sep_words <- senselabel[,c(1,4)]
+
+#inner join
+sd_words <- inner_join(sd,sep_words)
+ld_words <- inner_join(ld,sep_words)
+
+
+print(rbind(sd_words[1:5,],ld_words[1:5,]))
+```
+
+## Data Analysis
+　In order to figure out what are the factors can bring people happy moments, we mainly focus on noun since this category of words always contains the subject of happy moments.    
+　Therefore,we can create a new dataset which only contains nouns and do the word frequency analysis based on this dataset.        
+　The factors brings people happy moments can be clearly seen from the wordcloud.  
+　This is the wordcloud consists of happy moments for last 24 hours.
+```{r,warning=FALSE,message=FALSE}
+NOUN <- senselabel[which(senselabel$POS == 'NOUN'),]
+sel_words <- rbind(NOUN)
+
+#inner join
+sd_s_words <- inner_join(sd,sel_words)
+ld_s_words <- inner_join(ld,sel_words)
+#Counting and sorting
+sdw_s_fre <- freq(sd_s_words$lowercaseLemma) 
+ldw_s_fre <- freq(ld_s_words$lowercaseLemma) 
+sdw_s_ordFreq = sdw_s_fre[order(sdw_s_fre$freq,decreasing=T),]
+ldw_s_ordFreq = ldw_s_fre[order(ldw_s_fre$freq,decreasing=T),]
+
+options(width = 60)
+wordcloud2(sdw_s_ordFreq)
+```
+　This is the wordcloud consists of their counterparts from last 3 months group.
+```{r,warning=FALSE,message=FALSE}
+options(width = 60)
+wordcloud2(ldw_s_ordFreq)
+```
+　It is not surprise to find that there are lots of common words appearing in both wordclouds.  
+　To have deeper insight into what factor's influence on people can last longer, which means people still consider it as the happy moment even this thing actually happened long time ago, we try to focus on the differences  between the words occurrence in this two groups. Therefore, I sorted the words in each group by their frequency of occurrence and selected the top 700 words as representative to compare the differences between two groups.  
+　By removing the words that appear in both groups,we can obtain their unique words, which represents the factors that contribute to long-term happy moments and short-term happy moments separately.  
+　Wordcloud for unique short-term words is as below:
+```{r,warning=FALSE,message=FALSE}
+s100 <- sdw_s_ordFreq[1:700,]
+l100 <- ldw_s_ordFreq[1:700,]
+com_words <- intersect(s100$char,l100$char)
+diff_words <- setdiff(s100$char,l100$char)
+uni_24h <- data.frame(setdiff(s100$char,com_words))
+colnames(uni_24h) <- c('char')
+final_24h <- inner_join(uni_24h,s100)
+
+options(width = 60)
+wordcloud2(final_24h)
+```
+　Wordcloud for unique long-term words is as below:
+```{r,warning=FALSE,message=FALSE}
+uni_3m <- data.frame(setdiff(l100$char,com_words))
+colnames(uni_3m) <- c('char')
+final_3m <- inner_join(uni_3m,l100)
+options(width = 60)
+wordcloud2(final_3m)
+```
+　According to the results, we can tell that the duration of happiness brought by different factors for people do vary.     
+　
+　A delicious taco or dessert may can make people happy and let them remember it for several days, however, it will be forgotten by people after a few months. Meanwhile, larger events like mountain climbing or more significant experiences such as attending a ceremony tend to stay in people's memories for a longer time, and they can still bring happiness even after several months.  
+　
+　In order to find out what can makes people feel happy, I also focus on the most frequent words people use when they describe their happy moments.
+
+```{r,,warning=FALSE,message=FALSE,comment=''}
+NOUN <- senselabel[which(senselabel$POS == 'NOUN'),]
+#ADJ <- senselabel[which(senselabel$POS == 'ADJ'),]
+VERB <- senselabel[which(senselabel$POS == 'VERB'),]
+PRON <- senselabel[which(senselabel$POS == 'PRON'),]
+
+NOUN_fre <- freq(NOUN$lowercaseLemma)
+NOUN_ordfre <- NOUN_fre[order(NOUN_fre$freq,decreasing = T),]
+#ADJ_fre <- freq(ADJ$lowercaseLemma)
+#ADJ_ordfre <- ADJ_fre[order(ADJ_fre$freq,decreasing = T),]
+VERB_fre <- freq(VERB$lowercaseLemma)
+VERB_ordfre <- VERB_fre[order(VERB_fre$freq,decreasing = T),]
+PRON_fre <- freq(PRON$lowercaseLemma)
+PRON_ordfre <- PRON_fre[order(PRON_fre$freq,decreasing = T),]
+top_ten_words <- cbind(PRON_ordfre[1:10,],NOUN_ordfre[1:10,],VERB_ordfre[1:10,])
+colnames(top_ten_words) <- c("PRON","Freq","NOUN","Freq","VERB","Freq")
+
+options(width = 200)
+print(top_ten_words)
+```
+　From the first column we can see that people feel happy with the things they did or the things happened to them. But other people or things can also bring people happy moments. Same as our intuition, friends and family always mean happiness to us, however, "work", surprisingly, is also in the top list. 
+
+## Conclusion
+　To sum up, obtaining happy is actually quite simple: having a delicious meal, spending more time with your family and friends,learning new skills to improve oneself, and so on. Doing more things that make you happy, focusing less on worries and troubles - **you deserve to become happier！**
+
+
